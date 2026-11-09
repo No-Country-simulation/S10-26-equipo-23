@@ -1,0 +1,153 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Pais {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre   String   @unique
+  ciudades Ciudad[]
+
+  @@map("paises")
+}
+
+model Ciudad {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pais_id     String              @db.Uuid
+  nombre      String
+  pais        Pais                @relation(fields: [pais_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ubicaciones BusquedaUbicacion[]
+
+  @@unique([pais_id, nombre])
+  @@index([pais_id])
+  @@map("ciudades")
+}
+
+model Busqueda {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rubro         String
+  rating_minimo Decimal?            @db.Decimal(2, 1)
+  rating_maximo Decimal?            @db.Decimal(2, 1)
+  min_resenas   Int?
+  estado        String
+  creada_en     DateTime            @default(now()) @db.Timestamptz(6)
+  finalizada_en DateTime?           @db.Timestamptz(6)
+  error         String?
+  resultados    BusquedaResultado?
+  ubicaciones   BusquedaUbicacion[]
+
+  @@map("busquedas")
+}
+
+model BusquedaResultado {
+  id                         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  busqueda_id                String   @unique @db.Uuid
+  capturado_en               DateTime @default(now()) @db.Timestamptz(6)
+  cantidad_negocios          Int      @default(0)
+  cantidad_leads             Int      @default(0)
+  cantidad_resenas           Int      @default(0)
+  cantidad_resenas_negativas Int      @default(0)
+  busqueda                   Busqueda @relation(fields: [busqueda_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("busqueda_resultados")
+}
+
+model BusquedaUbicacion {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  busqueda_id String    @db.Uuid
+  ciudad_id   String    @db.Uuid
+  busqueda    Busqueda  @relation(fields: [busqueda_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ciudad      Ciudad    @relation(fields: [ciudad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  negocios    Negocio[]
+
+  @@index([busqueda_id])
+  @@index([ciudad_id])
+  @@map("busqueda_ubicaciones")
+}
+
+model Negocio {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  busqueda_ubicacion_id String            @db.Uuid
+  google_place_id       String
+  nombre                String
+  direccion             String?
+  rating                Decimal?          @db.Decimal(2, 1)
+  n_resenas             Int?
+  hist_5                Int?
+  hist_4                Int?
+  hist_3                Int?
+  hist_2                Int?
+  hist_1                Int?
+  pct_negativas         Decimal?          @db.Decimal(4, 3)
+  primer_avistamiento   DateTime?         @db.Date
+  url_google_maps       String?
+  fecha_extraccion      DateTime?         @db.Date
+  ubicacion             BusquedaUbicacion @relation(fields: [busqueda_ubicacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  resenas               Resena[]
+  contactos             NegocioContacto[]
+  lead                  Lead?
+
+  @@index([busqueda_ubicacion_id])
+  @@index([google_place_id])
+  @@map("negocios")
+}
+
+model Resena {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  negocio_id       String    @db.Uuid
+  autor            String?
+  rating           Int?      @db.SmallInt
+  fuente           String?
+  texto            String?
+  respondida       Boolean?
+  meses_atras      Int?
+  fecha_aprox      DateTime? @db.Date
+  fecha_extraccion DateTime? @db.Date
+  negocio          Negocio   @relation(fields: [negocio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([negocio_id])
+  @@map("resenas")
+}
+
+model NegocioContacto {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  negocio_id String  @db.Uuid
+  tipo       String
+  subtipo    String?
+  valor      String
+  fuente     String
+  negocio    Negocio @relation(fields: [negocio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([negocio_id])
+  @@map("negocio_contactos")
+}
+
+model Lead {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  negocio_id       String            @unique @db.Uuid
+  prioridad        String?
+  percentil        Decimal?          @db.Decimal(4, 3)
+  tendencia        String?
+  variacion_rating Decimal?          @db.Decimal(3, 1)
+  negocio          Negocio           @relation(fields: [negocio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  problemas        NegocioProblema[]
+
+  @@map("leads")
+}
+
+model NegocioProblema {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id       String    @db.Uuid
+  problema      String?
+  justificacion String?
+  generado_en   DateTime? @db.Timestamptz(6)
+  lead          Lead      @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([lead_id])
+  @@map("negocio_problemas")
+}

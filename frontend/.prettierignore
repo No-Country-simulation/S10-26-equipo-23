@@ -1,0 +1,3 @@
+dist
+package-lock.json
+src/types/api.gen.ts
