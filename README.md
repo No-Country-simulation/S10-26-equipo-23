@@ -98,25 +98,6 @@ Para ver la app con datos sin ejecutar el scraper:
 
 3. Pulsa **Importar búsquedas**. Se crea una búsqueda por rubro y queda en curso mientras Gemini detecta los problemas de sus leads y redacta su correo de primer contacto. Al terminar pasa a completada.
 
-### Scripts de Gemini
-
-El backend ejecuta los scripts del equipo de IA con el Python del scraper (`SCRAPER_PYTHON`) y la clave de `backend/.env`. No hace falta completar sus archivos `*_inputs.json`:
-
-| Carpeta              | Script                 | Qué hace en la app                                                                                      |
-| -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| `detecta problemas/` | `DETECTA_PROBLEMAS.py` | Clasifica las reseñas negativas de cada lead en hasta 3 problemas                                       |
-| `genera mails/`      | `GENERA_MAILS.py`      | Redacta el correo de primer contacto de cada lead. Se ve en el detalle del negocio y en el CSV de leads |
-
-Los correos son borradores: revísalos antes de enviarlos. La app no envía correos.
-
-Cuando el modelo principal responde 503 dos veces seguidas, el backend repite la tarea con `GEMINI_MODELO_RESPALDO`. Si aun así Gemini no responde al redactar los correos, la búsqueda se completa igual con los correos que sí se redactaron. Los que falten se piden después desde el detalle del negocio con **Redactar correo**, que también sirve para volver a redactar uno que no convenza.
-
-### Si ya tenías el proyecto instalado
-
-Después de actualizar el repositorio, pon al día el backend antes de levantarlo (hay una tabla nueva para los correos):
-
-```bash
-cd backend
 npm install
 npx prisma generate --config prisma7.config.ts
 npx prisma migrate deploy --config prisma7.config.ts
