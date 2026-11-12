@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/importaciones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ImportacionesController_importar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/busquedas/{id}/negocios": {
         parameters: {
             query?: never;
@@ -194,7 +210,7 @@ export interface components {
             resultados: components["schemas"]["ResultadosDto"] | null;
         };
         /** @enum {number} */
-        FaseScraper: 1 | 2;
+        FaseScraper: 1 | 2 | 3;
         ProgresoDto: {
             sesion: number;
             fase: components["schemas"]["FaseScraper"];
@@ -204,6 +220,21 @@ export interface components {
         ProgresoBusquedaEventoDto: {
             estado: components["schemas"]["EstadoBusqueda"];
             progreso: components["schemas"]["ProgresoDto"] | null;
+        };
+        BusquedaImportadaDto: {
+            /** Format: uuid */
+            id: string;
+            rubro: string;
+            cantidad_ubicaciones: number;
+            cantidad_negocios: number;
+            cantidad_leads: number;
+            cantidad_resenas: number;
+            cantidad_contactos: number;
+        };
+        ImportacionDto: {
+            busquedas: components["schemas"]["BusquedaImportadaDto"][];
+            ciudades_creadas: number;
+            filas_invalidas: number;
         };
         /** @enum {string} */
         TipoContacto: "telefono" | "email" | "web" | "facebook" | "instagram" | "tiktok" | "x" | "youtube" | "linkedin";
@@ -228,7 +259,8 @@ export interface components {
             percentil: number | null;
             tendencia: components["schemas"]["TendenciaLead"] | null;
             variacion_rating: number | null;
-            problema: string | null;
+            /** @description Problemas detectados por Gemini, en orden (hasta 3) */
+            problemas: string[];
         };
         NegocioFilaDto: {
             /** Format: uuid */
@@ -267,8 +299,8 @@ export interface components {
         ProblemaDto: {
             /** Format: uuid */
             id: string;
+            orden: number;
             problema: string | null;
-            justificacion: string | null;
             /** Format: date-time */
             generado_en: string | null;
         };
@@ -642,6 +674,54 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": components["schemas"]["ErrorDto"];
+                };
+            };
+        };
+    };
+    ImportacionesController_importar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    negocios: string;
+                    /** Format: binary */
+                    fichas: string;
+                    /** Format: binary */
+                    resenas: string;
+                    /** Format: binary */
+                    leads: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportacionDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDto"];
                 };
             };
         };

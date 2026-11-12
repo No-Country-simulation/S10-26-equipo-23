@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Filtros } from '../common/busqueda.js';
+import { RATING_NEGATIVA } from '../common/problemas.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
@@ -59,7 +60,10 @@ export type DatosImportacion = {
   contactosPorPlaceId: Map<string, ContactoNuevo[]>;
   resenasPorPlaceId: Map<string, ResenaNueva[]>;
   leadsPorPlaceId: Map<string, LeadNuevo>;
+  problemasPorPlaceId: Map<string, string[]>;
 };
+
+export type DatosSinProblemas = Omit<DatosImportacion, 'problemasPorPlaceId'>;
 
 export type Conteos = {
   negocios: number;
@@ -68,7 +72,31 @@ export type Conteos = {
   contactos: number;
 };
 
-const RATING_NEGATIVA = 2;
+export type DetallesImportacion = Omit<DatosSinProblemas, 'negocios'>;
+
+export type LugarImportado = { clave: string; ciudad: string; pais: string };
+
+export type NegocioImportado = Omit<NegocioNuevo, 'busqueda_ubicacion_id'> & {
+  lugar: string;
+};
+
+export type BusquedaImportada = {
+  rubro: string;
+  lugares: LugarImportado[];
+  negocios: NegocioImportado[];
+};
+
+export type BusquedaCreada = {
+  id: string;
+  ubicacionPorLugar: Map<string, string>;
+};
+
+export type BusquedasCreadas = {
+  busquedas: BusquedaCreada[];
+  ciudades_creadas: number;
+};
+
+type Transaccion = Prisma.TransactionClient;
 
 function aFecha(valor: string | null) {
   return valor === null ? null : new Date(`${valor}T00:00:00.000Z`);
@@ -80,6 +108,14 @@ function enLotes<T>(filas: T[]): T[][] {
     lotes.push(filas.slice(i, i + TAMANO_LOTE));
   }
   return lotes;
+}
+
+function exigir<K, V>(mapa: Map<K, V>, clave: K): V {
+  const valor = mapa.get(clave);
+  if (valor === undefined) {
+    throw new Error(`Falta la clave ${String(clave)}`);
+  }
+  return valor;
 }
 
 @Injectable()
@@ -137,84 +173,209 @@ export class ImportadorRepository {
         if (existentes > 0) {
           throw new Error('La búsqueda ya tiene negocios importados');
         }
-
-        const insertados: { id: string; google_place_id: string }[] = [];
-        for (const lote of enLotes(datos.negocios)) {
-          insertados.push(
-            ...(await tx.negocio.createManyAndReturn({
-              data: lote.map((negocio) => ({
-                ...negocio,
-                primer_avistamiento: aFecha(negocio.primer_avistamiento),
-                fecha_extraccion: aFecha(negocio.fecha_extraccion),
-              })),
-              select: { id: true, google_place_id: true },
-            })),
-          );
-        }
-
-        const contactos: Prisma.NegocioContactoCreateManyInput[] = [];
-        const resenas: Prisma.ResenaCreateManyInput[] = [];
-        const leads: Prisma.LeadCreateManyInput[] = [];
-        for (const negocio of insertados) {
-          const placeId = negocio.google_place_id;
-          for (const contacto of datos.contactosPorPlaceId.get(placeId) ?? []) {
-            contactos.push({ ...contacto, negocio_id: negocio.id });
-          }
-          for (const resena of datos.resenasPorPlaceId.get(placeId) ?? []) {
-            resenas.push({
-              ...resena,
-              negocio_id: negocio.id,
-              fecha_extraccion: aFecha(resena.fecha_extraccion),
-            });
-          }
-          const lead = datos.leadsPorPlaceId.get(placeId);
-          if (lead) {
-            leads.push({ ...lead, negocio_id: negocio.id });
-          }
-        }
-
-        for (const lote of enLotes(contactos)) {
-          await tx.negocioContacto.createMany({ data: lote });
-        }
-        for (const lote of enLotes(resenas)) {
-          await tx.resena.createMany({ data: lote });
-        }
-        for (const lote of enLotes(leads)) {
-          await tx.lead.createMany({ data: lote });
-        }
-
-        const ids = insertados.map((negocio) => negocio.id);
-        await tx.$executeRaw`
-          UPDATE resenas
-          SET fecha_aprox = (fecha_extraccion - make_interval(months => meses_atras))::date
-          WHERE negocio_id = ANY(${ids}::uuid[])
-            AND meses_atras IS NOT NULL
-            AND fecha_extraccion IS NOT NULL
-        `;
-
-        await tx.busquedaResultado.create({
-          data: {
-            busqueda_id: busquedaId,
-            cantidad_negocios: insertados.length,
-            cantidad_leads: leads.length,
-            cantidad_resenas: resenas.length,
-            cantidad_resenas_negativas: resenas.filter(
-              (resena) =>
-                resena.rating !== null &&
-                resena.rating !== undefined &&
-                resena.rating <= RATING_NEGATIVA,
-            ).length,
-          },
-        });
-
-        return {
-          negocios: insertados.length,
-          leads: leads.length,
-          resenas: resenas.length,
-          contactos: contactos.length,
-        };
+        return this.insertarResultados(tx, busquedaId, datos);
       },
       { timeout, maxWait: 10_000 },
     );
+  }
+
+  async crearBusquedasImportadas(
+    busquedas: Pick<BusquedaImportada, 'rubro' | 'lugares'>[],
+    timeout: number,
+  ): Promise<BusquedasCreadas> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const lugares = new Map<string, LugarImportado>();
+        for (const busqueda of busquedas) {
+          for (const lugar of busqueda.lugares) {
+            lugares.set(lugar.clave, lugar);
+          }
+        }
+        const { ciudadPorLugar, creadas } = await this.resolverCiudades(tx, [
+          ...lugares.values(),
+        ]);
+
+        const creadasBusquedas: BusquedaCreada[] = [];
+        for (const busqueda of busquedas) {
+          const ciudadIds = [
+            ...new Set(
+              busqueda.lugares.map((lugar) =>
+                exigir(ciudadPorLugar, lugar.clave),
+              ),
+            ),
+          ];
+          const creada = await tx.busqueda.create({
+            data: {
+              rubro: busqueda.rubro,
+              estado: 'en_curso',
+              ubicaciones: {
+                create: ciudadIds.map((ciudad_id) => ({ ciudad_id })),
+              },
+            },
+            select: {
+              id: true,
+              ubicaciones: { select: { id: true, ciudad_id: true } },
+            },
+          });
+          const ubicacionPorCiudad = new Map(
+            creada.ubicaciones.map((ubicacion) => [
+              ubicacion.ciudad_id,
+              ubicacion.id,
+            ]),
+          );
+          creadasBusquedas.push({
+            id: creada.id,
+            ubicacionPorLugar: new Map(
+              busqueda.lugares.map((lugar) => [
+                lugar.clave,
+                exigir(ubicacionPorCiudad, exigir(ciudadPorLugar, lugar.clave)),
+              ]),
+            ),
+          });
+        }
+        return { busquedas: creadasBusquedas, ciudades_creadas: creadas };
+      },
+      { timeout, maxWait: 10_000 },
+    );
+  }
+
+  private async resolverCiudades(tx: Transaccion, lugares: LugarImportado[]) {
+    const paisPorNombre = new Map(
+      (await tx.pais.findMany({ select: { id: true, nombre: true } })).map(
+        (pais) => [pais.nombre, pais.id],
+      ),
+    );
+    const ciudadPorLugar = new Map<string, string>();
+    let creadas = 0;
+    for (const lugar of lugares) {
+      const paisId = paisPorNombre.get(lugar.pais);
+      if (!paisId) {
+        throw new Error(`No existe el país ${lugar.pais} en la base`);
+      }
+      const [existente] = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id
+        FROM ciudades
+        WHERE pais_id = ${paisId}::uuid
+          AND unaccent(lower(nombre)) = unaccent(lower(${lugar.ciudad}))
+        ORDER BY (nombre = ${lugar.ciudad}) DESC, nombre
+        LIMIT 1
+      `;
+      if (existente) {
+        ciudadPorLugar.set(lugar.clave, existente.id);
+        continue;
+      }
+      const nueva = await tx.ciudad.create({
+        data: { pais_id: paisId, nombre: lugar.ciudad },
+        select: { id: true },
+      });
+      ciudadPorLugar.set(lugar.clave, nueva.id);
+      creadas += 1;
+    }
+    return { ciudadPorLugar, creadas };
+  }
+
+  private async insertarResultados(
+    tx: Transaccion,
+    busquedaId: string,
+    datos: DatosImportacion,
+  ): Promise<Conteos> {
+    const insertados: { id: string; google_place_id: string }[] = [];
+    for (const lote of enLotes(datos.negocios)) {
+      insertados.push(
+        ...(await tx.negocio.createManyAndReturn({
+          data: lote.map((negocio) => ({
+            ...negocio,
+            primer_avistamiento: aFecha(negocio.primer_avistamiento),
+            fecha_extraccion: aFecha(negocio.fecha_extraccion),
+          })),
+          select: { id: true, google_place_id: true },
+        })),
+      );
+    }
+
+    const contactos: Prisma.NegocioContactoCreateManyInput[] = [];
+    const resenas: Prisma.ResenaCreateManyInput[] = [];
+    const leads: Prisma.LeadCreateManyInput[] = [];
+    for (const negocio of insertados) {
+      const placeId = negocio.google_place_id;
+      for (const contacto of datos.contactosPorPlaceId.get(placeId) ?? []) {
+        contactos.push({ ...contacto, negocio_id: negocio.id });
+      }
+      for (const resena of datos.resenasPorPlaceId.get(placeId) ?? []) {
+        resenas.push({
+          ...resena,
+          negocio_id: negocio.id,
+          fecha_extraccion: aFecha(resena.fecha_extraccion),
+        });
+      }
+      const lead = datos.leadsPorPlaceId.get(placeId);
+      if (lead) {
+        leads.push({ ...lead, negocio_id: negocio.id });
+      }
+    }
+
+    for (const lote of enLotes(contactos)) {
+      await tx.negocioContacto.createMany({ data: lote });
+    }
+    for (const lote of enLotes(resenas)) {
+      await tx.resena.createMany({ data: lote });
+    }
+    const placeIdPorNegocio = new Map(
+      insertados.map((negocio) => [negocio.id, negocio.google_place_id]),
+    );
+    const problemas: Prisma.NegocioProblemaCreateManyInput[] = [];
+    const generadoEn = new Date();
+    for (const lote of enLotes(leads)) {
+      const creados = await tx.lead.createManyAndReturn({
+        data: lote,
+        select: { id: true, negocio_id: true },
+      });
+      for (const lead of creados) {
+        const placeId = exigir(placeIdPorNegocio, lead.negocio_id);
+        (datos.problemasPorPlaceId.get(placeId) ?? []).forEach(
+          (problema, indice) =>
+            problemas.push({
+              lead_id: lead.id,
+              orden: indice + 1,
+              problema,
+              generado_en: generadoEn,
+            }),
+        );
+      }
+    }
+    for (const lote of enLotes(problemas)) {
+      await tx.negocioProblema.createMany({ data: lote });
+    }
+
+    const ids = insertados.map((negocio) => negocio.id);
+    await tx.$executeRaw`
+      UPDATE resenas
+      SET fecha_aprox = (fecha_extraccion - make_interval(months => meses_atras))::date
+      WHERE negocio_id = ANY(${ids}::uuid[])
+        AND meses_atras IS NOT NULL
+        AND fecha_extraccion IS NOT NULL
+    `;
+
+    await tx.busquedaResultado.create({
+      data: {
+        busqueda_id: busquedaId,
+        cantidad_negocios: insertados.length,
+        cantidad_leads: leads.length,
+        cantidad_resenas: resenas.length,
+        cantidad_resenas_negativas: resenas.filter(
+          (resena) =>
+            resena.rating !== null &&
+            resena.rating !== undefined &&
+            resena.rating <= RATING_NEGATIVA,
+        ).length,
+      },
+    });
+
+    return {
+      negocios: insertados.length,
+      leads: leads.length,
+      resenas: resenas.length,
+      contactos: contactos.length,
+    };
   }
 }

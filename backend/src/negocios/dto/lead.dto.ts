@@ -15,11 +15,11 @@ export class ProblemaDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id: string;
 
-  @ApiProperty({ type: String, nullable: true })
-  problema: string | null;
+  @ApiProperty({ type: 'integer' })
+  orden: number;
 
   @ApiProperty({ type: String, nullable: true })
-  justificacion: string | null;
+  problema: string | null;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   generado_en: Date | null;
@@ -51,8 +51,11 @@ class LeadBaseDto {
 }
 
 export class LeadFilaDto extends LeadBaseDto {
-  @ApiProperty({ type: String, nullable: true })
-  problema: string | null;
+  @ApiProperty({
+    type: [String],
+    description: 'Problemas detectados por Gemini, en orden (hasta 3)',
+  })
+  problemas: string[];
 }
 
 export class LeadDetalleDto extends LeadBaseDto {

@@ -18,7 +18,7 @@ import type { CiudadConPaisDto } from '@/types/api'
 import { columnas } from './columns'
 import { NegociosCargando } from './negocios-cargando'
 import { NegociosError } from './negocios-error'
-import { NegociosFiltros } from './negocios-filtros'
+import { NegociosFiltros, type ProblemaConLeads } from './negocios-filtros'
 import { NegociosTabla } from './negocios-tabla'
 import { NegociosVacio } from './negocios-vacio'
 
@@ -36,6 +36,21 @@ function ciudadesDe(negocios: NegocioFilaDto[]) {
   )
 }
 
+function problemasDe(negocios: NegocioFilaDto[]): ProblemaConLeads[] {
+  const cantidades = new Map<string, number>()
+  negocios.forEach(({ lead }) =>
+    lead?.problemas.forEach((problema) =>
+      cantidades.set(problema, (cantidades.get(problema) ?? 0) + 1),
+    ),
+  )
+  return [...cantidades]
+    .map(([problema, cantidad]) => ({ problema, cantidad }))
+    .sort(
+      (a, b) =>
+        b.cantidad - a.cantidad || a.problema.localeCompare(b.problema, 'es'),
+    )
+}
+
 export function NegociosSeccion({ busquedaId }: { busquedaId: string }) {
   const {
     data: negocios = SIN_NEGOCIOS,
@@ -51,6 +66,7 @@ export function NegociosSeccion({ busquedaId }: { busquedaId: string }) {
   )
   const leads = useMemo(() => soloLeads(filtrados), [filtrados])
   const ciudades = useMemo(() => ciudadesDe(negocios), [negocios])
+  const problemas = useMemo(() => problemasDe(negocios), [negocios])
 
   if (isPending) return <NegociosCargando />
   if (isError) return <NegociosError onReintentar={() => refetch()} />
@@ -126,6 +142,7 @@ export function NegociosSeccion({ busquedaId }: { busquedaId: string }) {
       <NegociosFiltros
         filtros={filtros}
         ciudades={ciudades}
+        problemas={problemas}
         onCambiar={cambiarFiltro}
         onLimpiar={limpiarFiltros}
       />

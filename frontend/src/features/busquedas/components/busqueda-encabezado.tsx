@@ -1,9 +1,23 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, MapPin, MessageSquare, Star } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronDown,
+  MapPin,
+  MessageSquare,
+  Star,
+} from 'lucide-react'
+import { cn } from 'cn'
 import { Link } from 'react-router'
 import { PageHeader } from '@/components/layout/page-header'
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { paths } from '@/config/paths'
-import type { BusquedaDto } from '@/types/api'
+import type { BusquedaDto, PaisDto, UbicacionDto } from '@/types/api'
 import { FILTROS_POR_DEFECTO } from '@/utils/filtros'
 import {
   formatearFecha,
@@ -14,6 +28,24 @@ import {
 const CLASES_PASTILLA =
   'flex items-center gap-1 rounded-full border bg-card px-3 py-1 text-sm'
 const CLASES_ICONO = 'size-4 shrink-0 text-muted-foreground'
+
+type CiudadesDePais = {
+  pais: PaisDto
+  ciudades: string[]
+}
+
+function agruparPorPais(ubicaciones: UbicacionDto[]) {
+  const grupos = new Map<string, CiudadesDePais>()
+  for (const { ciudad } of ubicaciones) {
+    const grupo = grupos.get(ciudad.pais.id) ?? {
+      pais: ciudad.pais,
+      ciudades: [],
+    }
+    grupo.ciudades.push(ciudad.nombre)
+    grupos.set(ciudad.pais.id, grupo)
+  }
+  return [...grupos.values()]
+}
 
 type BusquedaEncabezadoProps = {
   busqueda: BusquedaDto
@@ -53,12 +85,63 @@ export function BusquedaEncabezado({
           aria-label="Ciudades de la búsqueda"
           className="flex flex-wrap gap-2"
         >
-          {busqueda.ubicaciones.map(({ id, ciudad }) => (
-            <li key={id} className={CLASES_PASTILLA}>
-              <MapPin aria-hidden="true" className={CLASES_ICONO} />
-              {ciudad.nombre}, {ciudad.pais.nombre}
-            </li>
-          ))}
+          {agruparPorPais(busqueda.ubicaciones).map(({ pais, ciudades }) =>
+            ciudades.length === 1 ? (
+              <li key={pais.id} className={CLASES_PASTILLA}>
+                <MapPin aria-hidden="true" className={CLASES_ICONO} />
+                {ciudades[0]}, {pais.nombre}
+              </li>
+            ) : (
+              <li key={pais.id}>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        CLASES_PASTILLA,
+                        'cursor-pointer transition-colors hover:bg-accent data-[state=open]:border-primary data-[state=open]:bg-accent motion-reduce:transition-none',
+                      )}
+                    >
+                      <MapPin aria-hidden="true" className={CLASES_ICONO} />
+                      {pais.nombre}
+                      <span className="text-muted-foreground">
+                        ·{' '}
+                        <span className="tabular-nums">{ciudades.length}</span>{' '}
+                        ciudades
+                      </span>
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={CLASES_ICONO}
+                      />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-80 cursor-default">
+                    <PopoverHeader className="flex-row items-baseline justify-between gap-2 border-b pb-2">
+                      <PopoverTitle>{pais.nombre}</PopoverTitle>
+                      <span className="text-xs text-muted-foreground">
+                        <span className="tabular-nums">{ciudades.length}</span>{' '}
+                        ciudades
+                      </span>
+                    </PopoverHeader>
+                    <ul
+                      aria-label={`Ciudades de ${pais.nombre}`}
+                      className="grid max-h-72 grid-cols-2 gap-x-4 gap-y-2 overflow-y-auto"
+                    >
+                      {ciudades.map((ciudad) => (
+                        <li key={ciudad} className="flex items-start gap-1.5">
+                          <MapPin
+                            aria-hidden="true"
+                            className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                          />
+                          {ciudad}
+                        </li>
+                      ))}
+                    </ul>
+                  </PopoverContent>
+                </Popover>
+              </li>
+            ),
+          )}
         </ul>
         <ul
           aria-label="Filtros de la búsqueda"

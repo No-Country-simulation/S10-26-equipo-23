@@ -25,7 +25,17 @@ import {
 import { PAISES_SCRAPER } from '../common/paises-scraper.js';
 import { entornoDelProceso } from '../config/entorno-del-proceso.js';
 import type { Env } from '../config/env.schema.js';
-import { ImportadorService } from '../importador/importador.service.js';
+import type { DetectarProblemas } from '../common/problemas.js';
+import {
+  ImportadorService,
+  type BusquedaPendiente,
+  type Importacion,
+} from '../importador/importador.service.js';
+import {
+  DeteccionProblemasError,
+  DetectorProblemasService,
+} from './detector-problemas.service.js';
+import { leerLineas } from './leer-lineas.js';
 
 const CONSULTAS_POR_SESION = 72;
 const DESCANSO_ENTRE_SESIONES_MS = 30 * 60 * 1000;
@@ -37,7 +47,7 @@ const ejecutarArchivo = promisify(execFile);
 
 export type Progreso = {
   sesion: number;
-  fase: 1 | 2;
+  fase: 1 | 2 | 3;
   hechas: number;
   total: number;
 };
@@ -57,7 +67,15 @@ type Ejecucion = {
   descanso: NodeJS.Timeout | null;
   progreso: Progreso | null;
   ultimasLineas: string[];
+  controlador: AbortController;
   detenida: boolean;
+};
+
+type ImportacionEnCurso = {
+  busquedaIds: Set<string>;
+  actual: string | null;
+  controlador: AbortController | null;
+  progreso: Progreso | null;
 };
 
 function mensajeDe(error: unknown) {
@@ -69,10 +87,12 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(ScraperService.name);
   private readonly cambios = new Subject<EventoProgreso>();
   private ejecucion: Ejecucion | null = null;
+  private importacion: ImportacionEnCurso | null = null;
 
   constructor(
     private readonly busquedas: BusquedasRepository,
     private readonly importador: ImportadorService,
+    private readonly detector: DetectorProblemasService,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -87,6 +107,13 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    const importacion = this.importacion;
+    if (importacion) {
+      importacion.controlador?.abort();
+      for (const busquedaId of [...importacion.busquedaIds]) {
+        await this.finalizar(busquedaId, 'fallida', ERROR_INTERRUPCION);
+      }
+    }
     const ejecucion = this.ejecucion;
     if (!ejecucion) {
       return;
@@ -106,8 +133,11 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   progresoActual(busquedaId: string): Progreso | null {
-    return this.ejecucion?.busqueda.id === busquedaId
-      ? this.ejecucion.progreso
+    if (this.ejecucion?.busqueda.id === busquedaId) {
+      return this.ejecucion.progreso;
+    }
+    return this.importacion?.actual === busquedaId
+      ? this.importacion.progreso
       : null;
   }
 
@@ -127,6 +157,7 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
       descanso: null,
       progreso: null,
       ultimasLineas: [],
+      controlador: new AbortController(),
       detenida: false,
     };
     this.ejecucion = ejecucion;
@@ -162,8 +193,30 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
     if (ejecucion) {
       await this.detener(ejecucion);
     }
+    this.sacarDeLaImportacion(busquedaId);
     await this.finalizar(busquedaId, 'cancelada');
     return this.exigir(busquedaId);
+  }
+
+  async importarArchivos(entrada: unknown): Promise<Importacion> {
+    const preparados = await this.importador.prepararArchivos(entrada);
+    if (await this.busquedas.hayEnCurso()) {
+      throw new ConflictException(
+        'Ya hay una búsqueda en curso. Espera a que termine o cancélala.',
+        { errorCode: 'BUSQUEDA_EN_CURSO' },
+      );
+    }
+    const { importacion, pendientes } =
+      await this.importador.crearBusquedasImportadas(preparados);
+    const enCurso: ImportacionEnCurso = {
+      busquedaIds: new Set(pendientes.map((pendiente) => pendiente.id)),
+      actual: null,
+      controlador: null,
+      progreso: null,
+    };
+    this.importacion = enCurso;
+    void this.procesarImportacion(enCurso, pendientes);
+    return importacion;
   }
 
   async eliminar(busquedaId: string): Promise<void> {
@@ -173,6 +226,7 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
       await this.detener(ejecucion);
       this.ejecucion = null;
     }
+    this.sacarDeLaImportacion(busquedaId);
     await this.busquedas.eliminar(busquedaId);
     this.logger.log(`Búsqueda ${busquedaId} eliminada`);
     if (busqueda.estado === 'en_curso') {
@@ -186,6 +240,86 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
 
   private ejecucionDe(busquedaId: string) {
     return this.ejecucion?.busqueda.id === busquedaId ? this.ejecucion : null;
+  }
+
+  private sacarDeLaImportacion(busquedaId: string) {
+    const importacion = this.importacion;
+    if (!importacion?.busquedaIds.delete(busquedaId)) {
+      return;
+    }
+    if (importacion.actual === busquedaId) {
+      importacion.controlador?.abort();
+    }
+  }
+
+  private async procesarImportacion(
+    importacion: ImportacionEnCurso,
+    pendientes: BusquedaPendiente[],
+  ) {
+    for (const pendiente of pendientes) {
+      if (!importacion.busquedaIds.has(pendiente.id)) {
+        continue;
+      }
+      const controlador = new AbortController();
+      importacion.actual = pendiente.id;
+      importacion.controlador = controlador;
+      importacion.progreso = null;
+      try {
+        await this.importador.guardarBusquedaImportada(
+          pendiente,
+          this.detectorPara(pendiente.id, 0, controlador.signal, (progreso) => {
+            importacion.progreso = progreso;
+          }),
+        );
+        if (!controlador.signal.aborted) {
+          await this.finalizar(pendiente.id, 'completada');
+        }
+      } catch (error) {
+        if (!controlador.signal.aborted) {
+          const mensaje = this.mensajeDeImportacion(error);
+          this.logger.error(`Búsqueda ${pendiente.id} fallida: ${mensaje}`);
+          await this.finalizar(pendiente.id, 'fallida', mensaje);
+        }
+      }
+      importacion.busquedaIds.delete(pendiente.id);
+    }
+    if (this.importacion === importacion) {
+      this.importacion = null;
+    }
+  }
+
+  private detectorPara(
+    busquedaId: string,
+    sesion: number,
+    signal: AbortSignal,
+    alGuardarProgreso: (progreso: Progreso) => void,
+  ): DetectarProblemas {
+    return async (resenas) => {
+      const problemas = await this.detector.detectar(resenas, {
+        signal,
+        alAvanzar: ({ hechos, total }) => {
+          const progreso: Progreso = { sesion, fase: 3, hechas: hechos, total };
+          alGuardarProgreso(progreso);
+          this.cambios.next({
+            busqueda_id: busquedaId,
+            estado: 'en_curso',
+            progreso,
+          });
+        },
+      });
+      if (signal.aborted) {
+        throw new Error('La búsqueda se detuvo');
+      }
+      return problemas;
+    };
+  }
+
+  private mensajeDeImportacion(error: unknown) {
+    if (error instanceof DeteccionProblemasError) {
+      return error.message;
+    }
+    this.logger.error(error instanceof Error ? error.stack : error);
+    return `La importación falló: ${mensajeDe(error)}`;
   }
 
   private async siguientePaso(ejecucion: Ejecucion) {
@@ -314,7 +448,7 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
       );
 
       const inicio = Date.now();
-      this.leerLineas(proceso, (linea) => this.procesarLinea(ejecucion, linea));
+      leerLineas(proceso, (linea) => this.procesarLinea(ejecucion, linea));
       const resultado = await new Promise<{
         codigo: number | null;
         senal: string | null;
@@ -350,26 +484,6 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
       await this.siguientePaso(ejecucion);
     } catch (error) {
       await this.fallar(ejecucion, `Error del scraper: ${mensajeDe(error)}`);
-    }
-  }
-
-  private leerLineas(proceso: ChildProcess, alLeer: (linea: string) => void) {
-    for (const salida of [proceso.stdout, proceso.stderr]) {
-      if (!salida) {
-        continue;
-      }
-      let pendiente = '';
-      salida.setEncoding('utf8');
-      salida.on('data', (fragmento: string) => {
-        const lineas = (pendiente + fragmento).split(/\r?\n/);
-        pendiente = lineas.pop() ?? '';
-        lineas.forEach(alLeer);
-      });
-      salida.on('end', () => {
-        if (pendiente) {
-          alLeer(pendiente);
-        }
-      });
     }
   }
 
@@ -429,17 +543,31 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
 
   private async importar(ejecucion: Ejecucion) {
     try {
-      await this.importador.importarBusqueda(ejecucion.busqueda.id);
+      await this.importador.importarBusqueda(
+        ejecucion.busqueda.id,
+        this.detectorPara(
+          ejecucion.busqueda.id,
+          ejecucion.sesion,
+          ejecucion.controlador.signal,
+          (progreso) => {
+            ejecucion.progreso = progreso;
+          },
+        ),
+      );
     } catch (error) {
-      this.logger.error(error instanceof Error ? error.stack : error);
-      await this.fallar(ejecucion, `La importación falló: ${mensajeDe(error)}`);
+      if (!ejecucion.detenida) {
+        await this.fallar(ejecucion, this.mensajeDeImportacion(error));
+      }
       return;
     }
-    await this.finalizar(ejecucion.busqueda.id, 'completada');
+    if (!ejecucion.detenida) {
+      await this.finalizar(ejecucion.busqueda.id, 'completada');
+    }
   }
 
   private async detener(ejecucion: Ejecucion) {
     ejecucion.detenida = true;
+    ejecucion.controlador.abort();
     if (ejecucion.descanso) {
       clearTimeout(ejecucion.descanso);
       ejecucion.descanso = null;

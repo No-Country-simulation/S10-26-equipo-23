@@ -1,4 +1,5 @@
 # S10-26-equipo-23
+
 RepuSense - Radar de Reputación en Crisis
 
 ## Cómo ejecutar el proyecto
@@ -29,13 +30,16 @@ pip install -r requirements.txt
    copy .env.example .env
    ```
 
-   | Variable | Valor |
-   |---|---|
-   | `DATABASE_URL` | Conexión a tu PostgreSQL: `postgresql://USUARIO:CLAVE@localhost:5432/repusense` |
-   | `PORT` | Puerto del backend (por defecto `3000`) |
-   | `SCRAPER_DIR` | Ruta absoluta a la carpeta `scrapping` |
-   | `SCRAPER_PYTHON` | Ruta absoluta al Python del entorno virtual: `...\scrapping\.venv\Scripts\python.exe` |
-   | `SCRAPER_NOTEBOOK` | `11_scraping_leads_maps.ipynb` |
+   | Variable           | Valor                                                                                         |
+   | ------------------ | --------------------------------------------------------------------------------------------- |
+   | `DATABASE_URL`     | Conexión a tu PostgreSQL: `postgresql://USUARIO:CLAVE@localhost:5432/repusense`               |
+   | `PORT`             | Puerto del backend (por defecto `3000`)                                                       |
+   | `LOG_LEVEL`        | Nivel de detalle de los logs (por defecto `info`)                                             |
+   | `SCRAPER_DIR`      | Ruta absoluta a la carpeta `scrapping`                                                        |
+   | `SCRAPER_PYTHON`   | Ruta absoluta al Python del entorno virtual: `...\scrapping\.venv\Scripts\python.exe`         |
+   | `SCRAPER_NOTEBOOK` | `11_scraping_leads_maps.ipynb`                                                                |
+   | `GEMINI_API_KEY`   | Clave de Gemini                                                                               |
+   | `GEMINI_MODELO`    | Modelo de Gemini que detecta los problemas de cada lead (por defecto `gemini-3.5-flash-lite`) |
 
 3. Instala las dependencias, genera el cliente de Prisma y crea las tablas:
 
@@ -66,6 +70,18 @@ npm run dev
 
 Abre `http://localhost:5173`. Las peticiones a `/api` se redirigen al backend en el puerto 3000.
 
-## Registro para presencia
+### 4. Cargar datos de ejemplo (opcional)
 
-- [X] Lucel Da Silva
+Para ver la app con datos sin ejecutar el scraper:
+
+1. En la pantalla de búsquedas, abre **Importar CSV**.
+2. Elige los archivos de la carpeta `importar/`:
+
+   | Campo    | Archivo                  |
+   | -------- | ------------------------ |
+   | Negocios | `negocios_11_limpio.csv` |
+   | Fichas   | `fichas_11_limpio.csv`   |
+   | Reseñas  | `resenas_11_limpio.csv`  |
+   | Leads    | `leads_11_limpio.csv`    |
+
+3. Pulsa **Importar búsquedas**. Se crea una búsqueda por rubro y queda en curso mientras Gemini detecta los problemas de sus leads y al terminar pasa a completada.

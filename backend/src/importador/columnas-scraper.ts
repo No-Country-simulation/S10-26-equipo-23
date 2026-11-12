@@ -127,11 +127,17 @@ export type FilaFicha = z.infer<typeof ESQUEMAS.fichas>;
 export type FilaResena = z.infer<typeof ESQUEMAS.resenas>;
 export type FilaLead = z.infer<typeof ESQUEMAS.leads>;
 
+function obligatorias(esquema: z.ZodObject, opcionales: string[] = []) {
+  return Object.keys(esquema.shape).filter(
+    (columna) => !opcionales.includes(columna),
+  );
+}
+
 export const COLUMNAS_OBLIGATORIAS: Record<Archivo, string[]> = {
-  negocios: Object.keys(ESQUEMAS.negocios.shape),
-  fichas: Object.keys(ESQUEMAS.fichas.shape),
-  resenas: Object.keys(ESQUEMAS.resenas.shape),
-  leads: Object.keys(ESQUEMAS.leads.shape),
+  negocios: obligatorias(ESQUEMAS.negocios),
+  fichas: obligatorias(ESQUEMAS.fichas),
+  resenas: obligatorias(ESQUEMAS.resenas),
+  leads: obligatorias(ESQUEMAS.leads, ['variacion_rating']),
 };
 
 export const SEPARADOR_LISTA = '; ';

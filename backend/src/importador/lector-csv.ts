@@ -1,5 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { access } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { Logger } from '@nestjs/common';
 import Papa from 'papaparse';
@@ -12,9 +13,22 @@ import {
 
 const MAX_EJEMPLOS = 10;
 
-type FilaDe<A extends Archivo> = ReturnType<(typeof ESQUEMAS)[A]['parse']>;
+export type FilaDe<A extends Archivo> = ReturnType<
+  (typeof ESQUEMAS)[A]['parse']
+>;
 
 export type ResultadoLectura = { existe: boolean; invalidas: number };
+
+export class ColumnasFaltantesError extends Error {
+  constructor(
+    readonly archivo: Archivo,
+    readonly faltantes: string[],
+  ) {
+    super(
+      `A ${ARCHIVOS[archivo]} le faltan las columnas: ${faltantes.join(', ')}`,
+    );
+  }
+}
 
 async function existe(ruta: string) {
   try {
@@ -31,18 +45,46 @@ export async function leerCsv<A extends Archivo>(
   logger: Logger,
   alLeerFila: (fila: FilaDe<A>) => void,
 ): Promise<ResultadoLectura> {
-  const nombre = ARCHIVOS[archivo];
-  const ruta = `${carpeta}/${nombre}`;
+  const ruta = `${carpeta}/${ARCHIVOS[archivo]}`;
   if (!(await existe(ruta))) {
     return { existe: false, invalidas: 0 };
   }
+  const invalidas = await leerFilas(
+    createReadStream(ruta, { encoding: 'utf8' }),
+    archivo,
+    logger,
+    alLeerFila,
+  );
+  return { existe: true, invalidas };
+}
 
+export function leerCsvSubido<A extends Archivo>(
+  contenido: Buffer,
+  archivo: A,
+  logger: Logger,
+  alLeerFila: (fila: FilaDe<A>) => void,
+): Promise<number> {
+  return leerFilas(
+    Readable.from([contenido.toString('utf8')]),
+    archivo,
+    logger,
+    alLeerFila,
+  );
+}
+
+async function leerFilas<A extends Archivo>(
+  entrada: Readable,
+  archivo: A,
+  logger: Logger,
+  alLeerFila: (fila: FilaDe<A>) => void,
+): Promise<number> {
+  const nombre = ARCHIVOS[archivo];
   const esquema = ESQUEMAS[archivo];
   let numero = 0;
   let invalidas = 0;
 
   await pipeline(
-    createReadStream(ruta, { encoding: 'utf8' }),
+    entrada,
     Papa.parse(Papa.NODE_STREAM_INPUT, { header: true, skipEmptyLines: true }),
     async function (filas: AsyncIterable<Record<string, string>>) {
       for await (const fila of filas) {
@@ -52,9 +94,7 @@ export async function leerCsv<A extends Archivo>(
             (columna) => !(columna in fila),
           );
           if (faltantes.length > 0) {
-            throw new Error(
-              `A ${nombre} le faltan las columnas: ${faltantes.join(', ')}`,
-            );
+            throw new ColumnasFaltantesError(archivo, faltantes);
           }
         }
         const resultado = esquema.safeParse(fila);
@@ -73,5 +113,5 @@ export async function leerCsv<A extends Archivo>(
     },
   );
 
-  return { existe: true, invalidas };
+  return invalidas;
 }

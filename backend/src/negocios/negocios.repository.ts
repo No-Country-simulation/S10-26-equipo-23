@@ -44,13 +44,13 @@ type NegocioBase = {
 };
 
 export type NegocioFila = NegocioBase & {
-  lead: (LeadBase & { problema: string | null }) | null;
+  lead: (LeadBase & { problemas: string[] }) | null;
 };
 
 export type Problema = {
   id: string;
+  orden: number;
   problema: string | null;
-  justificacion: string | null;
   generado_en: Date | null;
 };
 
@@ -83,13 +83,13 @@ const ORDEN_FUENTE: Record<string, number> = { google_maps: 0, web_negocio: 1 };
 
 const SELECCION_PROBLEMA = {
   id: true,
+  orden: true,
   problema: true,
-  justificacion: true,
   generado_en: true,
 } as const satisfies Prisma.NegocioProblemaSelect;
 
 const ORDEN_PROBLEMAS = {
-  generado_en: { sort: 'desc', nulls: 'last' },
+  orden: 'asc',
 } as const satisfies Prisma.NegocioProblemaOrderByWithRelationInput;
 
 const SELECCION_BASE = {
@@ -130,11 +130,7 @@ const SELECCION_FILA = {
   lead: {
     select: {
       ...SELECCION_LEAD,
-      problemas: {
-        select: { problema: true },
-        orderBy: ORDEN_PROBLEMAS,
-        take: 1,
-      },
+      problemas: { select: { problema: true }, orderBy: ORDEN_PROBLEMAS },
     },
   },
 } as const satisfies Prisma.NegocioSelect;
@@ -235,7 +231,9 @@ export class NegociosRepository {
       lead: fila.lead
         ? {
             ...aLeadBase(fila.lead),
-            problema: fila.lead.problemas[0]?.problema ?? null,
+            problemas: fila.lead.problemas.flatMap(({ problema }) =>
+              problema === null ? [] : [problema],
+            ),
           }
         : null,
     }));

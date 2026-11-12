@@ -65,3 +65,4 @@ __pycache__/
 *.egg-info/
 .ipynb_checkpoints/
 .pytest_cache/
+scrapping/DETECTA_PROBLEMAS_inputs.json

@@ -3,6 +3,7 @@ export const busquedasKeys = {
   lista: () => [...busquedasKeys.all, 'lista'] as const,
   detalle: (id: string) => [...busquedasKeys.all, 'detalle', id] as const,
   crear: () => [...busquedasKeys.all, 'crear'] as const,
+  importar: () => [...busquedasKeys.all, 'importar'] as const,
 }
 
 export const catalogosKeys = {

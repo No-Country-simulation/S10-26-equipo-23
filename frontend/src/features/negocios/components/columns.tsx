@@ -4,12 +4,14 @@ import {
   type Row,
 } from '@tanstack/react-table'
 import { Link } from 'react-router'
+import { Badge } from '@/components/ui/badge'
 import { paths } from '@/config/paths'
 import type {
   NegocioFilaDto,
   PrioridadLead,
   TendenciaLead as Tendencia,
 } from '@/features/negocios/types/api'
+import { formatearProblema } from '@/features/negocios/utils/formatear-problema'
 import { formatearPorcentaje, formatearRating } from '@/utils/formatos'
 import { NegocioContactos } from './negocio-contactos'
 import { PrioridadLeadBadge } from './prioridad-lead-badge'
@@ -132,6 +134,28 @@ const columnaTendencia = ayudante.accessor(
   },
 )
 
+const columnaProblemas = ayudante.accessor(
+  ({ lead }) => lead?.problemas ?? [],
+  {
+    id: 'problemas',
+    header: 'Problemas',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const problemas = row.original.lead?.problemas ?? []
+      if (problemas.length === 0) return <SinDato />
+      return (
+        <ul className="flex max-w-48 flex-wrap gap-1 whitespace-normal">
+          {problemas.map((problema) => (
+            <li key={problema}>
+              <Badge variant="outline">{formatearProblema(problema)}</Badge>
+            </li>
+          ))}
+        </ul>
+      )
+    },
+  },
+)
+
 const columnaContacto = ayudante.accessor('contactos', {
   header: 'Contacto',
   enableSorting: false,
@@ -146,6 +170,7 @@ export const columnas = ayudante.columns([
   columnaNegativas,
   columnaPrioridad,
   columnaTendencia,
+  columnaProblemas,
   columnaContacto,
 ])
 

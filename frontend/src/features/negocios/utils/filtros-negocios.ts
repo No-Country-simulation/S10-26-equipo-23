@@ -6,9 +6,12 @@ export const PARAMETROS_FILTRO = {
   ratingMinimo: 'rating_min',
   ratingMaximo: 'rating_max',
   ciudad: 'ciudad',
+  problemas: 'problemas',
 } as const
 
 export type FiltrosNegocios = Record<keyof typeof PARAMETROS_FILTRO, string>
+
+const SEPARADOR_PROBLEMAS = ','
 
 const RATING_MINIMO = 1
 const RATING_MAXIMO = 5
@@ -19,7 +22,16 @@ export function leerFiltros(searchParams: URLSearchParams): FiltrosNegocios {
     ratingMinimo: searchParams.get(PARAMETROS_FILTRO.ratingMinimo) ?? '',
     ratingMaximo: searchParams.get(PARAMETROS_FILTRO.ratingMaximo) ?? '',
     ciudad: searchParams.get(PARAMETROS_FILTRO.ciudad) ?? '',
+    problemas: searchParams.get(PARAMETROS_FILTRO.problemas) ?? '',
   }
+}
+
+export function leerProblemas(valor: string) {
+  return valor.split(SEPARADOR_PROBLEMAS).filter(Boolean)
+}
+
+export function unirProblemas(problemas: string[]) {
+  return problemas.join(SEPARADOR_PROBLEMAS)
 }
 
 export function hayFiltros(filtros: FiltrosNegocios) {
@@ -50,10 +62,17 @@ export function filtrarNegocios(
   const texto = normalizarTexto(filtros.texto)
   const ratingMinimo = leerRating(filtros.ratingMinimo)
   const ratingMaximo = leerRating(filtros.ratingMaximo)
+  const problemas = leerProblemas(filtros.problemas)
 
   return negocios.filter((negocio) => {
     if (texto && !normalizarTexto(negocio.nombre).includes(texto)) return false
     if (filtros.ciudad && negocio.ciudad.id !== filtros.ciudad) return false
+    if (
+      problemas.length > 0 &&
+      !negocio.lead?.problemas.some((problema) => problemas.includes(problema))
+    ) {
+      return false
+    }
     if (
       ratingMinimo !== null &&
       (negocio.rating === null || negocio.rating < ratingMinimo)

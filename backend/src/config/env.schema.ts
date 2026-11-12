@@ -9,6 +9,8 @@ export const envSchema = z.object({
   SCRAPER_DIR: z.string().min(1),
   SCRAPER_PYTHON: z.string().min(1),
   SCRAPER_NOTEBOOK: z.string().min(1).default('11_scraping_leads_maps.ipynb'),
+  GEMINI_API_KEY: z.string().min(1),
+  GEMINI_MODELO: z.string().min(1).default('gemini-3.5-flash-lite'),
 });
 
 export type Env = z.infer<typeof envSchema>;

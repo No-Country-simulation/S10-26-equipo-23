@@ -35,6 +35,7 @@ function crearFila(negocio: NegocioFilaDto) {
         : Math.round(negocio.pct_negativas * 100),
     Prioridad: negocio.lead?.prioridad ?? null,
     Tendencia: negocio.lead?.tendencia ?? null,
+    Problemas: negocio.lead?.problemas.join('; ') ?? null,
     Teléfonos: unirContactos(negocio, ['telefono']),
     Correos: unirContactos(negocio, ['email']),
     Web: unirContactos(negocio, ['web']),

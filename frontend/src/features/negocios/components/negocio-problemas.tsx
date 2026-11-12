@@ -1,4 +1,5 @@
 import type { ProblemaDto } from '@/features/negocios/types/api'
+import { formatearProblema } from '@/features/negocios/utils/formatear-problema'
 import { DetalleCard } from './detalle-card'
 
 export function NegocioProblemas({ problemas }: { problemas: ProblemaDto[] }) {
@@ -10,23 +11,23 @@ export function NegocioProblemas({ problemas }: { problemas: ProblemaDto[] }) {
     >
       {problemas.length === 0 ? (
         <p className="text-muted-foreground">
-          Todavía no hay análisis de la IA.
+          No hay reseñas negativas con texto para analizar.
         </p>
       ) : (
-        <ul className="flex flex-col gap-6">
+        <ol className="flex flex-col gap-2">
           {problemas.map((problema) => (
-            <li key={problema.id} className="flex flex-col gap-1">
-              <p className="font-medium">
-                {problema.problema ?? 'Sin descripción'}
-              </p>
-              {problema.justificacion && (
-                <p className="text-muted-foreground">
-                  {problema.justificacion}
-                </p>
-              )}
+            <li key={problema.id} className="flex items-baseline gap-2">
+              <span className="text-muted-foreground tabular-nums">
+                {problema.orden}.
+              </span>
+              <span className="font-medium">
+                {problema.problema === null
+                  ? 'Sin descripción'
+                  : formatearProblema(problema.problema)}
+              </span>
             </li>
           ))}
-        </ul>
+        </ol>
       )}
     </DetalleCard>
   )

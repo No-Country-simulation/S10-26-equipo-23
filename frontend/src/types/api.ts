@@ -17,3 +17,8 @@ export type CreateCiudadBody =
 
 export type CreateBusquedaBody =
   operations['BusquedasController_crear']['requestBody']['content']['application/json']
+
+export type ImportacionDto = Esquemas['ImportacionDto']
+
+export type ImportacionBody =
+  operations['ImportacionesController_importar']['requestBody']['content']['multipart/form-data']
