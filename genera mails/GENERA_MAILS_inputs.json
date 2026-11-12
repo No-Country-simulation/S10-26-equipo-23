@@ -1,0 +1,13 @@
+{
+  "API_KEY": "TU API KEY AQUI!!!!",
+  "MODELO": "gemini-3.5-flash-lite",
+  "RUTA_NEGOCIOS": "leads_con_problemas.csv",
+  "RUTA_SALIDA": "mails.csv",
+  "REMITENTE": "TU NOMBRE O EL DE TU EQUIPO",
+  "EMPRESA": "TU EMPRESA",
+  "OFERTA": "Ayudamos a negocios locales a gestionar su reputación online: responder reseñas, resolver los problemas que se repiten y mejorar su presencia en redes.",
+  "LLAMADA_ACCION": "Agendar una llamada de 15 minutos esta semana",
+  "TAMANO_LOTE": 10,
+  "TONO": "profesional, cálido y breve; trato de usted",
+  "FIRMA": "Tu nombre\nNombre de tu empresa\ntu@correo.com"
+}

@@ -1,0 +1,5 @@
+{"API_KEY" : "TU API KEY AQUI!!!!",
+"MODELO" : "gemini-3.5-flash-lite",
+"RUTA_SALIDA": "resultados.csv",
+"RUTA_RESENAS" : "bases ricardo/resenas_11.csv",
+"MAX_RATING" : 2.1}
