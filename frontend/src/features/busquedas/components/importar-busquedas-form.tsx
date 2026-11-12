@@ -60,7 +60,7 @@ function resumir(importacion: ImportacionDto) {
     (total, busqueda) => total + busqueda.cantidad_leads,
     0,
   )
-  const resumen = `Se están importando ${contar(importacion.busquedas.length, 'búsqueda', 'búsquedas')} con ${contar(negocios, 'negocio', 'negocios')} y ${contar(leads, 'lead', 'leads')}. Gemini detecta sus problemas y puede tardar unos minutos`
+  const resumen = `Se están importando ${contar(importacion.busquedas.length, 'búsqueda', 'búsquedas')} con ${contar(negocios, 'negocio', 'negocios')} y ${contar(leads, 'lead', 'leads')}. Gemini detecta sus problemas y redacta sus correos, y puede tardar unos minutos`
   return importacion.filas_invalidas > 0
     ? `${resumen}. Se omitieron ${contar(importacion.filas_invalidas, 'fila inválida', 'filas inválidas')}`
     : resumen

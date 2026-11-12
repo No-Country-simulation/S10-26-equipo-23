@@ -25,6 +25,20 @@ export class ProblemaDto {
   generado_en: Date | null;
 }
 
+export class CorreoDto {
+  @ApiProperty({ type: String })
+  asunto: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'Incluye la firma y la línea para darse de baja',
+  })
+  cuerpo: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generado_en: Date;
+}
+
 class LeadBaseDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id: string;
@@ -48,6 +62,13 @@ class LeadBaseDto {
 
   @ApiProperty({ type: Number, nullable: true })
   variacion_rating: number | null;
+
+  @ApiProperty({
+    type: () => CorreoDto,
+    nullable: true,
+    description: 'Correo de primer contacto redactado por Gemini',
+  })
+  correo: CorreoDto | null;
 }
 
 export class LeadFilaDto extends LeadBaseDto {

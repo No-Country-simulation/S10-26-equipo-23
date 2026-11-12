@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { CorreoGenerado, NegocioParaCorreo } from '../common/correos.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import {
@@ -22,12 +23,19 @@ type CiudadConPais = {
   pais: { id: string; nombre: string };
 };
 
+export type Correo = {
+  asunto: string;
+  cuerpo: string;
+  generado_en: Date;
+};
+
 type LeadBase = {
   id: string;
   prioridad: PrioridadLead | null;
   percentil: number | null;
   tendencia: TendenciaLead | null;
   variacion_rating: number | null;
+  correo: Correo | null;
 };
 
 type NegocioBase = {
@@ -79,6 +87,11 @@ export type NegocioDetalle = NegocioBase & {
   lead: (LeadBase & { problemas: Problema[] }) | null;
 };
 
+export type LeadParaCorreo = {
+  lead_id: string | null;
+  negocio: NegocioParaCorreo;
+};
+
 const ORDEN_FUENTE: Record<string, number> = { google_maps: 0, web_negocio: 1 };
 
 const SELECCION_PROBLEMA = {
@@ -123,6 +136,7 @@ const SELECCION_LEAD = {
   percentil: true,
   tendencia: true,
   variacion_rating: true,
+  correo: { select: { asunto: true, cuerpo: true, generado_en: true } },
 } as const satisfies Prisma.LeadSelect;
 
 const SELECCION_FILA = {
@@ -213,6 +227,7 @@ function aLeadBase(lead: FilaLead): LeadBase {
     percentil: aNumero(lead.percentil),
     tendencia: lead.tendencia as TendenciaLead | null,
     variacion_rating: aNumero(lead.variacion_rating),
+    correo: lead.correo,
   };
 }
 
@@ -266,5 +281,60 @@ export class NegociosRepository {
         ? { ...aLeadBase(fila.lead), problemas: fila.lead.problemas }
         : null,
     };
+  }
+
+  async obtenerParaCorreo(id: string): Promise<LeadParaCorreo | null> {
+    const fila = await this.prisma.negocio.findUnique({
+      where: { id },
+      select: {
+        google_place_id: true,
+        nombre: true,
+        rating: true,
+        n_resenas: true,
+        ubicacion: {
+          select: {
+            busqueda: { select: { rubro: true } },
+            ciudad: {
+              select: { nombre: true, pais: { select: { nombre: true } } },
+            },
+          },
+        },
+        contactos: { where: { tipo: 'email' }, select: { valor: true } },
+        lead: {
+          select: {
+            id: true,
+            problemas: { select: { problema: true }, orderBy: ORDEN_PROBLEMAS },
+          },
+        },
+      },
+    });
+    if (!fila) {
+      return null;
+    }
+    return {
+      lead_id: fila.lead?.id ?? null,
+      negocio: {
+        place_id: fila.google_place_id,
+        nombre: fila.nombre,
+        ciudad: fila.ubicacion.ciudad.nombre,
+        pais: fila.ubicacion.ciudad.pais.nombre,
+        descripcion: fila.ubicacion.busqueda.rubro,
+        n_resenas: fila.n_resenas,
+        rating: aNumero(fila.rating),
+        problemas: (fila.lead?.problemas ?? []).flatMap(({ problema }) =>
+          problema === null ? [] : [problema],
+        ),
+        email: fila.contactos[0]?.valor ?? null,
+      },
+    };
+  }
+
+  async guardarCorreo(leadId: string, correo: CorreoGenerado): Promise<void> {
+    const datos = { ...correo, generado_en: new Date() };
+    await this.prisma.leadCorreo.upsert({
+      where: { lead_id: leadId },
+      create: { lead_id: leadId, ...datos },
+      update: datos,
+    });
   }
 }

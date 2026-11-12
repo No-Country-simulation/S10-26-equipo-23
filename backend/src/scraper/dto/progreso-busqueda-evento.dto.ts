@@ -8,8 +8,8 @@ export class ProgresoDto {
   @ApiProperty({ type: 'integer' })
   sesion: number;
 
-  @ApiProperty({ enum: [1, 2, 3], enumName: 'FaseScraper' })
-  fase: 1 | 2 | 3;
+  @ApiProperty({ enum: [1, 2, 3, 4], enumName: 'FaseScraper' })
+  fase: 1 | 2 | 3 | 4;
 
   @ApiProperty({ type: 'integer' })
   hechas: number;

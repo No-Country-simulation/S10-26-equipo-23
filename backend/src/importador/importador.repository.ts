@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Filtros } from '../common/busqueda.js';
+import type { CorreoGenerado } from '../common/correos.js';
 import { RATING_NEGATIVA } from '../common/problemas.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -61,9 +62,13 @@ export type DatosImportacion = {
   resenasPorPlaceId: Map<string, ResenaNueva[]>;
   leadsPorPlaceId: Map<string, LeadNuevo>;
   problemasPorPlaceId: Map<string, string[]>;
+  correosPorPlaceId: Map<string, CorreoGenerado>;
 };
 
-export type DatosSinProblemas = Omit<DatosImportacion, 'problemasPorPlaceId'>;
+export type DatosSinAnalisis = Omit<
+  DatosImportacion,
+  'problemasPorPlaceId' | 'correosPorPlaceId'
+>;
 
 export type Conteos = {
   negocios: number;
@@ -72,7 +77,7 @@ export type Conteos = {
   contactos: number;
 };
 
-export type DetallesImportacion = Omit<DatosSinProblemas, 'negocios'>;
+export type DetallesImportacion = Omit<DatosSinAnalisis, 'negocios'>;
 
 export type LugarImportado = { clave: string; ciudad: string; pais: string };
 
@@ -324,6 +329,7 @@ export class ImportadorRepository {
       insertados.map((negocio) => [negocio.id, negocio.google_place_id]),
     );
     const problemas: Prisma.NegocioProblemaCreateManyInput[] = [];
+    const correos: Prisma.LeadCorreoCreateManyInput[] = [];
     const generadoEn = new Date();
     for (const lote of enLotes(leads)) {
       const creados = await tx.lead.createManyAndReturn({
@@ -341,10 +347,22 @@ export class ImportadorRepository {
               generado_en: generadoEn,
             }),
         );
+        const correo = datos.correosPorPlaceId.get(placeId);
+        if (correo) {
+          correos.push({
+            lead_id: lead.id,
+            asunto: correo.asunto,
+            cuerpo: correo.cuerpo,
+            generado_en: generadoEn,
+          });
+        }
       }
     }
     for (const lote of enLotes(problemas)) {
       await tx.negocioProblema.createMany({ data: lote });
+    }
+    for (const lote of enLotes(correos)) {
+      await tx.leadCorreo.createMany({ data: lote });
     }
 
     const ids = insertados.map((negocio) => negocio.id);

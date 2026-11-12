@@ -33,7 +33,8 @@ export function ImportarBusquedasDialog({
           <DialogTitle>Importar CSV</DialogTitle>
           <DialogDescription>
             Sube los 4 CSV del scraper para crear sus búsquedas. Antes de
-            guardarlas, Gemini detecta los problemas de cada lead
+            guardarlas, Gemini detecta los problemas de cada lead y redacta su
+            correo de primer contacto
           </DialogDescription>
         </DialogHeader>
         <ImportarBusquedasForm onImportada={() => onAbiertoChange(false)} />

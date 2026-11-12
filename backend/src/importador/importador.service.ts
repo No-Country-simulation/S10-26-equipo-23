@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { cumpleFiltros, type Filtros } from '../common/busqueda.js';
+import type { GenerarCorreos, NegocioParaCorreo } from '../common/correos.js';
 import { PAISES_SCRAPER } from '../common/paises-scraper.js';
 import {
   RATING_NEGATIVA,
@@ -23,7 +24,7 @@ import {
   type BusquedaImportada,
   type BusquedaParaImportar,
   type ContactoNuevo,
-  type DatosSinProblemas,
+  type DatosSinAnalisis,
   type DetallesImportacion,
   type LeadNuevo,
   type LugarImportado,
@@ -64,7 +65,12 @@ export type ResumenImportacion = {
 export type BusquedaPendiente = {
   id: string;
   rubro: string;
-  datos: DatosSinProblemas;
+  datos: DatosSinAnalisis;
+};
+
+export type AnalisisGemini = {
+  detectar: DetectarProblemas;
+  generarCorreos: GenerarCorreos;
 };
 
 export type ArchivosPreparados = {
@@ -193,7 +199,7 @@ function aNegocio(
   };
 }
 
-function resenasParaDetectar(datos: DatosSinProblemas): ResenaParaDetectar[] {
+function resenasParaDetectar(datos: DatosSinAnalisis): ResenaParaDetectar[] {
   const placeIds = new Set(
     datos.negocios
       .map((negocio) => negocio.google_place_id)
@@ -226,7 +232,44 @@ function resenasParaDetectar(datos: DatosSinProblemas): ResenaParaDetectar[] {
   return resenas;
 }
 
-function contar(datos: DatosSinProblemas) {
+function negociosParaCorreo(
+  datos: DatosSinAnalisis,
+  busqueda: BusquedaParaImportar,
+  problemasPorPlaceId: Map<string, string[]>,
+): NegocioParaCorreo[] {
+  const lugarPorUbicacion = new Map(
+    busqueda.ubicaciones.map((ubicacion) => [ubicacion.id, ubicacion]),
+  );
+  const negocios = new Map<string, NegocioParaCorreo>();
+  for (const negocio of datos.negocios) {
+    const placeId = negocio.google_place_id;
+    const lugar = lugarPorUbicacion.get(negocio.busqueda_ubicacion_id);
+    if (
+      !lugar ||
+      !datos.leadsPorPlaceId.has(placeId) ||
+      negocios.has(placeId)
+    ) {
+      continue;
+    }
+    const email = datos.contactosPorPlaceId
+      .get(placeId)
+      ?.find((contacto) => contacto.tipo === 'email');
+    negocios.set(placeId, {
+      place_id: placeId,
+      nombre: negocio.nombre,
+      ciudad: lugar.ciudad,
+      pais: lugar.pais,
+      descripcion: busqueda.rubro,
+      n_resenas: negocio.n_resenas,
+      rating: negocio.rating,
+      problemas: problemasPorPlaceId.get(placeId) ?? [],
+      email: email?.valor ?? null,
+    });
+  }
+  return [...negocios.values()];
+}
+
+function contar(datos: DatosSinAnalisis) {
   let leads = 0;
   let resenas = 0;
   let contactos = 0;
@@ -286,7 +329,7 @@ export class ImportadorService {
 
   async importarBusqueda(
     busquedaId: string,
-    detectar: DetectarProblemas,
+    gemini: AnalisisGemini,
   ): Promise<ResumenImportacion> {
     const inicio = Date.now();
     this.logger.log(`Importando la búsqueda ${busquedaId}`);
@@ -311,15 +354,15 @@ export class ImportadorService {
       ),
     }));
 
-    const conteos = await this.guardarConProblemas(
-      busquedaId,
+    const conteos = await this.guardarConAnalisis(
+      busqueda,
       {
         negocios: nuevos,
         contactosPorPlaceId: detalles.contactosPorPlaceId,
         resenasPorPlaceId: detalles.resenasPorPlaceId,
         leadsPorPlaceId: detalles.leadsPorPlaceId,
       },
-      detectar,
+      gemini,
     );
     const resumen: ResumenImportacion = {
       busqueda_id: busquedaId,
@@ -438,13 +481,13 @@ export class ImportadorService {
 
   async guardarBusquedaImportada(
     pendiente: BusquedaPendiente,
-    detectar: DetectarProblemas,
+    gemini: AnalisisGemini,
   ): Promise<void> {
     const inicio = Date.now();
-    const conteos = await this.guardarConProblemas(
-      pendiente.id,
+    const conteos = await this.guardarConAnalisis(
+      await this.exigirBusqueda(pendiente.id),
       pendiente.datos,
-      detectar,
+      gemini,
     );
     this.logger.log(
       {
@@ -456,15 +499,18 @@ export class ImportadorService {
     );
   }
 
-  private async guardarConProblemas(
-    busquedaId: string,
-    datos: DatosSinProblemas,
-    detectar: DetectarProblemas,
+  private async guardarConAnalisis(
+    busqueda: BusquedaParaImportar,
+    datos: DatosSinAnalisis,
+    { detectar, generarCorreos }: AnalisisGemini,
   ) {
     const problemasPorPlaceId = await detectar(resenasParaDetectar(datos));
+    const correosPorPlaceId = await generarCorreos(
+      negociosParaCorreo(datos, busqueda, problemasPorPlaceId),
+    );
     return this.repository.guardar(
-      busquedaId,
-      { ...datos, problemasPorPlaceId },
+      busqueda.id,
+      { ...datos, problemasPorPlaceId, correosPorPlaceId },
       TIMEOUT_IMPORTACION_MS,
     );
   }

@@ -1,8 +1,10 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
+  ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
 import { ErrorDto } from '../common/filters/error.dto.js';
 import { uuidSchema } from '../common/validacion/uuid.schema.js';
@@ -31,5 +33,22 @@ export class NegociosController {
     @Param('id', { schema: uuidSchema }) id: string,
   ): Promise<NegocioDetalleDto> {
     return this.negociosService.obtener(id);
+  }
+
+  @Post('negocios/:id/correo')
+  @HttpCode(200)
+  @ApiOkResponse({
+    type: NegocioDetalleDto,
+    description:
+      'Redacta con Gemini el correo de primer contacto del lead (reemplaza el anterior) y devuelve el negocio actualizado. Puede tardar varios minutos.',
+  })
+  @ApiBadRequestResponse({ type: ErrorDto })
+  @ApiNotFoundResponse({ type: ErrorDto })
+  @ApiConflictResponse({ type: ErrorDto })
+  @ApiServiceUnavailableResponse({ type: ErrorDto })
+  redactarCorreo(
+    @Param('id', { schema: uuidSchema }) id: string,
+  ): Promise<NegocioDetalleDto> {
+    return this.negociosService.redactarCorreo(id);
   }
 }

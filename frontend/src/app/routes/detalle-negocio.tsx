@@ -3,6 +3,7 @@ import {
   esNegocioNoEncontrado,
   useNegocio,
 } from '@/features/negocios/api/get-negocio'
+import { NegocioCorreo } from '@/features/negocios/components/negocio-correo'
 import { NegocioDetalleCargando } from '@/features/negocios/components/negocio-detalle-cargando'
 import { NegocioDetalleError } from '@/features/negocios/components/negocio-detalle-error'
 import { NegocioDistribucion } from '@/features/negocios/components/negocio-distribucion'
@@ -49,7 +50,14 @@ export function DetalleNegocioPage() {
         <div className="flex flex-col gap-6">
           <NegocioLead lead={negocio.lead} contactos={negocio.contactos} />
           {negocio.lead && (
-            <NegocioProblemas problemas={negocio.lead.problemas} />
+            <>
+              <NegocioProblemas problemas={negocio.lead.problemas} />
+              <NegocioCorreo
+                negocioId={negocio.id}
+                correo={negocio.lead.correo}
+                contactos={negocio.contactos}
+              />
+            </>
           )}
         </div>
       </div>

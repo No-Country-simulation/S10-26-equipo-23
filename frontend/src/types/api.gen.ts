@@ -148,6 +148,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/negocios/{id}/correo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["NegociosController_redactarCorreo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -210,7 +226,7 @@ export interface components {
             resultados: components["schemas"]["ResultadosDto"] | null;
         };
         /** @enum {number} */
-        FaseScraper: 1 | 2 | 3;
+        FaseScraper: 1 | 2 | 3 | 4;
         ProgresoDto: {
             sesion: number;
             fase: components["schemas"]["FaseScraper"];
@@ -252,6 +268,13 @@ export interface components {
         PrioridadLead: "Alta" | "Media";
         /** @enum {string} */
         TendenciaLead: "empeora" | "estable" | "mejora" | "sin historial";
+        CorreoDto: {
+            asunto: string;
+            /** @description Incluye la firma y la línea para darse de baja */
+            cuerpo: string;
+            /** Format: date-time */
+            generado_en: string;
+        };
         LeadFilaDto: {
             /** Format: uuid */
             id: string;
@@ -259,6 +282,8 @@ export interface components {
             percentil: number | null;
             tendencia: components["schemas"]["TendenciaLead"] | null;
             variacion_rating: number | null;
+            /** @description Correo de primer contacto redactado por Gemini */
+            correo: components["schemas"]["CorreoDto"] | null;
             /** @description Problemas detectados por Gemini, en orden (hasta 3) */
             problemas: string[];
         };
@@ -311,6 +336,8 @@ export interface components {
             percentil: number | null;
             tendencia: components["schemas"]["TendenciaLead"] | null;
             variacion_rating: number | null;
+            /** @description Correo de primer contacto redactado por Gemini */
+            correo: components["schemas"]["CorreoDto"] | null;
             problemas: components["schemas"]["ProblemaDto"][];
         };
         NegocioDetalleDto: {
@@ -791,6 +818,60 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDto"];
+                };
+            };
+        };
+    };
+    NegociosController_redactarCorreo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redacta con Gemini el correo de primer contacto del lead (reemplaza el anterior) y devuelve el negocio actualizado. Puede tardar varios minutos. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NegocioDetalleDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDto"];
+                };
+            };
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

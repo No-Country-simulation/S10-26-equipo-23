@@ -25,17 +25,19 @@ import {
 import { PAISES_SCRAPER } from '../common/paises-scraper.js';
 import { entornoDelProceso } from '../config/entorno-del-proceso.js';
 import type { Env } from '../config/env.schema.js';
-import type { DetectarProblemas } from '../common/problemas.js';
 import {
   ImportadorService,
+  type AnalisisGemini,
   type BusquedaPendiente,
   type Importacion,
 } from '../importador/importador.service.js';
-import {
-  DeteccionProblemasError,
-  DetectorProblemasService,
-} from './detector-problemas.service.js';
+import { DetectorProblemasService } from './detector-problemas.service.js';
+import { GeneradorCorreosService } from './generador-correos.service.js';
 import { leerLineas } from './leer-lineas.js';
+import {
+  ScriptGeminiError,
+  type OpcionesScript,
+} from './script-gemini.service.js';
 
 const CONSULTAS_POR_SESION = 72;
 const DESCANSO_ENTRE_SESIONES_MS = 30 * 60 * 1000;
@@ -47,7 +49,7 @@ const ejecutarArchivo = promisify(execFile);
 
 export type Progreso = {
   sesion: number;
-  fase: 1 | 2 | 3;
+  fase: 1 | 2 | 3 | 4;
   hechas: number;
   total: number;
 };
@@ -93,6 +95,7 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
     private readonly busquedas: BusquedasRepository,
     private readonly importador: ImportadorService,
     private readonly detector: DetectorProblemasService,
+    private readonly generador: GeneradorCorreosService,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -267,7 +270,7 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
       try {
         await this.importador.guardarBusquedaImportada(
           pendiente,
-          this.detectorPara(pendiente.id, 0, controlador.signal, (progreso) => {
+          this.analisisPara(pendiente.id, 0, controlador.signal, (progreso) => {
             importacion.progreso = progreso;
           }),
         );
@@ -288,34 +291,47 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
     }
   }
 
-  private detectorPara(
+  private analisisPara(
     busquedaId: string,
     sesion: number,
     signal: AbortSignal,
     alGuardarProgreso: (progreso: Progreso) => void,
-  ): DetectarProblemas {
-    return async (resenas) => {
-      const problemas = await this.detector.detectar(resenas, {
-        signal,
-        alAvanzar: ({ hechos, total }) => {
-          const progreso: Progreso = { sesion, fase: 3, hechas: hechos, total };
-          alGuardarProgreso(progreso);
-          this.cambios.next({
-            busqueda_id: busquedaId,
-            estado: 'en_curso',
-            progreso,
-          });
-        },
-      });
+  ): AnalisisGemini {
+    const opciones = (fase: 3 | 4): OpcionesScript => ({
+      signal,
+      alAvanzar: ({ hechos, total }) => {
+        const progreso: Progreso = { sesion, fase, hechas: hechos, total };
+        alGuardarProgreso(progreso);
+        this.cambios.next({
+          busqueda_id: busquedaId,
+          estado: 'en_curso',
+          progreso,
+        });
+      },
+    });
+    const exigirEnCurso = () => {
       if (signal.aborted) {
         throw new Error('La búsqueda se detuvo');
       }
-      return problemas;
+    };
+    return {
+      detectar: async (resenas) => {
+        const problemas = await this.detector.detectar(resenas, opciones(3));
+        exigirEnCurso();
+        return problemas;
+      },
+      generarCorreos: async (negocios) => {
+        const correos = await this.generador.generar(negocios, opciones(4), {
+          tolerante: true,
+        });
+        exigirEnCurso();
+        return correos;
+      },
     };
   }
 
   private mensajeDeImportacion(error: unknown) {
-    if (error instanceof DeteccionProblemasError) {
+    if (error instanceof ScriptGeminiError) {
       return error.message;
     }
     this.logger.error(error instanceof Error ? error.stack : error);
@@ -545,7 +561,7 @@ export class ScraperService implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       await this.importador.importarBusqueda(
         ejecucion.busqueda.id,
-        this.detectorPara(
+        this.analisisPara(
           ejecucion.busqueda.id,
           ejecucion.sesion,
           ejecucion.controlador.signal,

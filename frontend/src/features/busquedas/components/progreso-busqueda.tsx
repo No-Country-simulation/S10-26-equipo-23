@@ -7,14 +7,15 @@ const FASES: Record<ProgresoDto['fase'], { texto: string; unidad: string }> = {
   1: { texto: 'Buscando negocios', unidad: 'ciudades' },
   2: { texto: 'Revisando fichas', unidad: 'negocios' },
   3: { texto: 'Detectando problemas con Gemini', unidad: 'grupos de leads' },
+  4: { texto: 'Redactando correos con Gemini', unidad: 'grupos de leads' },
 }
 
 function describir(progreso: ProgresoDto | null) {
   if (!progreso) {
     return 'Preparando la búsqueda…'
   }
-  if (progreso.fase === 3) {
-    const { texto, unidad } = FASES[3]
+  if (progreso.fase >= 3) {
+    const { texto, unidad } = FASES[progreso.fase]
     return `${texto}: ${progreso.hechas} de ${progreso.total} ${unidad}`
   }
   const sesion = `Sesión ${progreso.sesion}`

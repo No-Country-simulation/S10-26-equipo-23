@@ -136,6 +136,7 @@ model Lead {
   variacion_rating Decimal?          @db.Decimal(3, 1)
   negocio          Negocio           @relation(fields: [negocio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   problemas        NegocioProblema[]
+  correo           LeadCorreo?
 
   @@map("leads")
 }
@@ -150,4 +151,15 @@ model NegocioProblema {
 
   @@index([lead_id])
   @@map("negocio_problemas")
+}
+
+model LeadCorreo {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id     String   @unique @db.Uuid
+  asunto      String
+  cuerpo      String
+  generado_en DateTime @db.Timestamptz(6)
+  lead        Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("lead_correos")
 }

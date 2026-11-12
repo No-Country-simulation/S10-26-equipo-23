@@ -41,6 +41,8 @@ function crearFila(negocio: NegocioFilaDto) {
     Web: unirContactos(negocio, ['web']),
     'Redes sociales': unirContactos(negocio, TIPOS_RED_SOCIAL),
     'Google Maps': negocio.url_google_maps,
+    'Asunto del correo': negocio.lead?.correo?.asunto ?? null,
+    'Correo sugerido': negocio.lead?.correo?.cuerpo ?? null,
     'Fecha de extracción': negocio.fecha_extraccion,
   }
 }
