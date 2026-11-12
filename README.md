@@ -30,16 +30,17 @@ pip install -r requirements.txt
    copy .env.example .env
    ```
 
-   | Variable           | Valor                                                                                                  |
-   | ------------------ | ------------------------------------------------------------------------------------------------------ |
-   | `DATABASE_URL`     | Conexión a tu PostgreSQL: `postgresql://USUARIO:CLAVE@localhost:5432/repusense`                        |
-   | `PORT`             | Puerto del backend (por defecto `3000`)                                                                |
-   | `LOG_LEVEL`        | Nivel de detalle de los logs (por defecto `info`)                                                      |
-   | `SCRAPER_DIR`      | Ruta absoluta a la carpeta `scrapping`                                                                 |
-   | `SCRAPER_PYTHON`   | Ruta absoluta al Python del entorno virtual: `...\scrapping\.venv\Scripts\python.exe`                  |
-   | `SCRAPER_NOTEBOOK` | `11_scraping_leads_maps.ipynb`                                                                         |
-   | `GEMINI_API_KEY`   | Clave de Gemini                                                                                        |
-   | `GEMINI_MODELO`    | Modelo de Gemini que detecta los problemas y redacta los correos (por defecto `gemini-3.5-flash-lite`) |
+   | Variable                 | Valor                                                                                                                                      |
+   | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+   | `DATABASE_URL`           | Conexión a tu PostgreSQL: `postgresql://USUARIO:CLAVE@localhost:5432/repusense`                                                            |
+   | `PORT`                   | Puerto del backend (por defecto `3000`)                                                                                                    |
+   | `LOG_LEVEL`              | Nivel de detalle de los logs (por defecto `info`)                                                                                          |
+   | `SCRAPER_DIR`            | Ruta absoluta a la carpeta `scrapping`                                                                                                     |
+   | `SCRAPER_PYTHON`         | Ruta absoluta al Python del entorno virtual: `...\scrapping\.venv\Scripts\python.exe`                                                      |
+   | `SCRAPER_NOTEBOOK`       | `11_scraping_leads_maps.ipynb`                                                                                                             |
+   | `GEMINI_API_KEY`         | Clave de Gemini                                                                                                                            |
+   | `GEMINI_MODELO`          | Modelo de Gemini que detecta los problemas y redacta los correos (por defecto `gemini-3.5-flash-lite`)                                     |
+   | `GEMINI_MODELO_RESPALDO` | Modelo al que se cambia cuando el principal responde 503 por saturación (por defecto `gemini-3.1-flash-lite`; vacío para no usar respaldo) |
 
    Opcionales, para los correos de primer contacto que redacta Gemini (si no las defines se usan los valores por defecto):
 
@@ -108,7 +109,7 @@ El backend ejecuta los scripts del equipo de IA con el Python del scraper (`SCRA
 
 Los correos son borradores: revísalos antes de enviarlos. La app no envía correos.
 
-Si Gemini no responde al redactar los correos (por ejemplo, error 503 por saturación), la búsqueda se completa igual con los correos que sí se redactaron. Los que falten se piden después desde el detalle del negocio con **Redactar correo**, que también sirve para volver a redactar uno que no convenza.
+Cuando el modelo principal responde 503 dos veces seguidas, el backend repite la tarea con `GEMINI_MODELO_RESPALDO`. Si aun así Gemini no responde al redactar los correos, la búsqueda se completa igual con los correos que sí se redactaron. Los que falten se piden después desde el detalle del negocio con **Redactar correo**, que también sirve para volver a redactar uno que no convenza.
 
 ### Si ya tenías el proyecto instalado
 

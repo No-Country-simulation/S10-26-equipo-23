@@ -11,6 +11,7 @@ export const envSchema = z.object({
   SCRAPER_NOTEBOOK: z.string().min(1).default('11_scraping_leads_maps.ipynb'),
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODELO: z.string().min(1).default('gemini-3.5-flash-lite'),
+  GEMINI_MODELO_RESPALDO: z.string().default('gemini-3.1-flash-lite'),
   CORREOS_REMITENTE: z.string().min(1).default('Equipo RepuSense'),
   CORREOS_EMPRESA: z.string().min(1).default('RepuSense'),
   CORREOS_OFERTA: z
