@@ -22,8 +22,8 @@ pip install -r requirements.txt
 
 ### 2. Backend (NestJS + Prisma)
 
-1. Crea una base de datos vacía en PostgreSQL, por ejemplo `repusense`.
-2. Copia el archivo de variables de entorno y complétalo:
+**1.** Crea una base de datos vacía en PostgreSQL, por ejemplo `repusense`.
+**2.** Copia el archivo de variables de entorno y complétalo:
 
    ```bash
    cd backend
