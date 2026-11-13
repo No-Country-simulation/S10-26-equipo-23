@@ -53,7 +53,7 @@ pip install -r requirements.txt
    | `CORREOS_TONO`           | Tono del correo (por defecto el de `GENERA_MAILS.py`)                                   |
    | `CORREOS_FIRMA`          | Firma, con `\n` entre líneas (por defecto el remitente y la empresa)                    |
 
-3. Instala las dependencias, genera el cliente de Prisma y crea las tablas:
+**3.** Instala las dependencias, genera el cliente de Prisma y crea las tablas:
 
    ```bash
    npm install
@@ -62,7 +62,7 @@ pip install -r requirements.txt
    npx prisma db seed --config prisma7.config.ts
    ```
 
-4. Levanta el servidor:
+**4.** Levanta el servidor:
 
    ```bash
    npm run start:dev
@@ -86,8 +86,8 @@ Abre `http://localhost:5173`. Las peticiones a `/api` se redirigen al backend en
 
 Para ver la app con datos sin ejecutar el scraper:
 
-1. En la pantalla de búsquedas, abre **Importar CSV**.
-2. Elige los archivos de la carpeta `importar/`:
+**1.** En la pantalla de búsquedas, abre **Importar CSV**.
+**2.** Elige los archivos de la carpeta `importar/`:
 
    | Campo    | Archivo                  |
    | -------- | ------------------------ |
@@ -96,7 +96,7 @@ Para ver la app con datos sin ejecutar el scraper:
    | Reseñas  | `resenas_11_limpio.csv`  |
    | Leads    | `leads_11_limpio.csv`    |
 
-3. Pulsa **Importar búsquedas**. Se crea una búsqueda por rubro y queda en curso mientras Gemini detecta los problemas de sus leads y redacta su correo de primer contacto. Al terminar pasa a completada
+**3.** Pulsa **Importar búsquedas**. Se crea una búsqueda por rubro y queda en curso mientras Gemini detecta los problemas de sus leads y redacta su correo de primer contacto. Al terminar pasa a completada
 
 npm install
 npx prisma generate --config prisma7.config.ts
