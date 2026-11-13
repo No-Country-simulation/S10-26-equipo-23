@@ -1,6 +1,11 @@
-# S10-26-equipo-23
+# RepuSense - Radar de Reputación en Crisis
 
-RepuSense - Radar de Reputación en Crisis
+S10-26-equipo-23
+
+## Ejemplo de uso
+
+[Ver video](https://youtu.be/BfxC47cSe7w)
+
 
 ## Cómo ejecutar el proyecto
 
