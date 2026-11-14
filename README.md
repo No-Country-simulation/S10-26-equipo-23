@@ -105,8 +105,3 @@ Para ver la app con datos sin ejecutar el scraper:
    | Leads    | `leads_11_limpio.csv`    |
 
 **3.** Pulsa **Importar búsquedas**. Se crea una búsqueda por rubro y queda en curso mientras Gemini detecta los problemas de sus leads y redacta su correo de primer contacto. Al terminar pasa a completada
-
-npm install
-npx prisma generate --config prisma7.config.ts
-npx prisma migrate deploy --config prisma7.config.ts
-```
