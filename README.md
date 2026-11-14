@@ -3,7 +3,7 @@
 S10-26-equipo-23
 
 
-![Portada](images/repusense.png)
+![Portada](images/Repusense.png)
 
 ## Ejemplo de uso
 
