@@ -2,6 +2,9 @@
 
 S10-26-equipo-23
 
+
+[Portada](images/repusense.png)
+
 ## Ejemplo de uso
 
 [Ver video](https://youtu.be/BfxC47cSe7w)
